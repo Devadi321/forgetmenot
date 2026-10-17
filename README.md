@@ -175,6 +175,10 @@ RETURN u, r1, n1, r2, n2
 
 Full line-by-line walkthrough: see [DEMO_SCRIPT.md](DEMO_SCRIPT.md).
 
+## Graph Hacks submission status (17 Oct 2026)
+
+Built and tested 17 Oct: ForgetMeNot is complete and pushed to https://github.com/Devadi321/forgetmenot. Full loop verified live against real FalkorDB: facts saved as graph nodes/edges, recalled across sessions via Cypher traversal, /forget deletes nodes+edges. Still owed by Adithyan: record the 2-min demo video (follow DEMO_SCRIPT.md), then submit on WeMakeDevs before 18 Oct 11:59 PM IST.
+
 ## AI disclosure
 
 Built with Muse, an AI coding assistant. (Required by the Graph Hacks
