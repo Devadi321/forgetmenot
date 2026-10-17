@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ForgetMeNot — chat agent with graph memory</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+  header { padding: 14px 20px; background: #1e293b; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 2px 0 0; font-size: 13px; color: #94a3b8; }
+  header button { background: #334155; color: #e2e8f0; border: 0; padding: 8px 14px; border-radius: 8px; cursor: pointer; }
+  header button:hover { background: #475569; }
+  main { display: flex; gap: 16px; padding: 16px; height: calc(100vh - 66px); }
+  #chat-col { flex: 2; display: flex; flex-direction: column; background: #1e293b; border-radius: 12px; overflow: hidden; }
+  #messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 85%; padding: 10px 14px; border-radius: 12px; white-space: pre-wrap; line-height: 1.45; }
+  .msg.user { align-self: flex-end; background: #2563eb; }
+  .msg.bot { align-self: flex-start; background: #334155; }
+  .msg .meta { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+  #input-row { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #334155; }
+  #input-row input { flex: 1; padding: 10px; border-radius: 8px; border: 0; background: #0f172a; color: #e2e8f0; }
+  #input-row button { background: #2563eb; color: #fff; border: 0; padding: 10px 18px; border-radius: 8px; cursor: pointer; }
+  #cmds { display: flex; gap: 6px; padding: 0 12px 12px; flex-wrap: wrap; }
+  #cmds button { background: #334155; color: #cbd5e1; border: 0; padding: 6px 10px; border-radius: 999px; cursor: pointer; font-size: 12px; }
+  #side-col { flex: 1; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
+  .panel { background: #1e293b; border-radius: 12px; padding: 14px; }
+  .panel h2 { margin: 0 0 10px; font-size: 15px; }
+  .panel ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+  .panel li { margin-bottom: 4px; }
+  .chip { display: inline-block; background: #334155; border-radius: 999px; padding: 3px 9px; margin: 2px; font-size: 12px; }
+  .edge { font-size: 12px; color: #cbd5e1; }
+  .muted { color: #94a3b8; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🧠 ForgetMeNot</h1>
+    <p>A chat agent whose memory lives in a FalkorDB graph — it never forgets (until you tell it to).</p>
+  </div>
+  <button onclick="newSession()">🔄 New session</button>
+</header>
+<main>
+  <div id="chat-col">
+    <div id="messages"></div>
+    <div id="cmds">
+      <button onclick="sendCmd('/memories')">/memories</button>
+      <button onclick="sendCmd('/graph')">/graph</button>
+      <button onclick="sendCmd('/help')">/help</button>
+      <button onclick="sendCmd('/reset')">/reset</button>
+    </div>
+    <div id="input-row">
+      <input id="input" placeholder="Tell me something about yourself… (try: I love coffee)" autocomplete="off">
+      <button onclick="send()">Send</button>
+    </div>
+  </div>
+  <div id="side-col">
+    <div class="panel">
+      <h2>💾 Memories used in last reply</h2>
+      <div id="used" class="muted">None yet — chat and the agent will recall relevant memories here.</div>
+    </div>
+    <div class="panel">
+      <h2>🕸️ Memory graph</h2>
+      <div id="graph" class="muted">Empty — tell the agent something first.</div>
+    </div>
+  </div>
+</main>
+<script>
+const messagesEl = document.getElementById('messages');
+const inputEl = document.getElementById('input');
+
+function addMsg(text, who, meta) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + who;
+  div.textContent = text;
+  if (meta) {
+    const m = document.createElement('div');
+    m.className = 'meta';
+    m.textContent = meta;
+    div.appendChild(m);
+  }
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+async function send() {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  inputEl.value = '';
+  addMsg(text, 'user');
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({message: text})
+  });
+  const data = await res.json();
+  let meta = '';
+  if (data.memories_used && data.memories_used.length)
+    meta = '🧠 Recalled: ' + data.memories_used.join(' · ');
+  if (data.facts_saved && data.facts_saved.length)
+    meta += (meta ? ' | ' : '') + '💾 Saved: ' + data.facts_saved.join(' · ');
+  addMsg(data.reply, 'bot', meta || null);
+  refreshSide(data);
+}
+
+function sendCmd(cmd) {
+  inputEl.value = cmd;
+  send();
+}
+
+function newSession() {
+  // Memory lives in FalkorDB, NOT in this page — clearing the chat only.
+  // Hit "New session" then ask something from before: the agent still knows it.
+  messagesEl.innerHTML = '';
+  addMsg('New session started. My memory is in the graph, not this chat — ask me something you told me earlier.', 'bot');
+}
+
+async function refreshSide(data) {
+  if (data && data.memories_used) {
+    document.getElementById('used').innerHTML = data.memories_used.length
+      ? '<ul>' + data.memories_used.map(m => '<li>' + escapeHtml(m) + '</li>').join('') + '</ul>'
+      : '<span class="muted">No memories matched this message.</span>';
+  }
+  const g = await (await fetch('/api/graph')).json();
+  const graphEl = document.getElementById('graph');
+  if (!g.nodes.length) { graphEl.innerHTML = '<span class="muted">Empty.</span>'; return; }
+  const byId = {};
+  g.nodes.forEach(n => byId[n.id] = n);
+  const labelOf = n => n.properties.text || n.properties.name || n.properties.value || n.labels[0];
+  graphEl.innerHTML =
+    g.nodes.map(n => '<span class="chip">' + escapeHtml(n.labels[0] + ': ' + labelOf(n)) + '</span>').join('') +
+    '<div style="margin-top:10px">' + g.edges.map(e =>
+      '<div class="edge">' + escapeHtml(labelOf(byId[e.from])) + ' —[' + e.type + ']→ ' + escapeHtml(labelOf(byId[e.to])) + '</div>'
+    ).join('') + '</div>';
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+addMsg("Hi! I'm ForgetMeNot. Tell me things about yourself — I store them as a graph in FalkorDB and remember them across sessions. Try: 'I love coffee' then 'New session' then 'What do I like?'", 'bot');
+refreshSide();
+</script>
+</body>
+</html>

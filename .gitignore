@@ -1,0 +1,4 @@
+falkordb.so
+__pycache__/
+*.pyc
+.env
