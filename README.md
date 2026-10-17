@@ -105,6 +105,9 @@ MATCH (u:Person {name: 'User'})-[r1]->(n1)
 WHERE toLower(coalesce(n1.name, '')) IN $entities
    OR toLower(coalesce(n1.value, '')) IN $entities
    OR any(e IN $entities WHERE toLower(coalesce(n1.text, '')) CONTAINS e)
+   OR any(w IN $words WHERE toLower(coalesce(n1.name, '')) CONTAINS w
+      OR toLower(coalesce(n1.value, '')) CONTAINS w
+      OR toLower(coalesce(n1.text, '')) CONTAINS w)
 OPTIONAL MATCH (n1)-[r2]-(n2)
 RETURN n1, type(r1) AS rel1, n2, type(r2) AS rel2
 ```

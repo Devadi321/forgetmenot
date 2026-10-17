@@ -91,9 +91,13 @@ def extract_facts(user_message, assistant_reply):
                         "predicate must be one of: LIKES, DISLIKES, KNOWS, "
                         "WORKS_AT, PREFERS, INTERESTED_IN, OWNS, HAS_EVENT. "
                         "subject is 'User' or a person's name. text is a "
-                        "one-sentence summary of the fact. Only include "
-                        "facts the user stated or clearly confirmed. If "
-                        "none, reply []."
+                        "one-sentence summary of the fact. Keep the FULL "
+                        "context in text — e.g. if the user says 'My "
+                        "favourite football team is Kerala Blasters', "
+                        "text must be \"User's favourite football team is "
+                        "Kerala Blasters\", NOT 'User likes Kerala "
+                        "Blasters'. Only include facts the user stated or "
+                        "clearly confirmed. If none, reply []."
                     ),
                 },
                 {

@@ -27,12 +27,18 @@ FALKOR_PORT = int(os.environ.get("FALKOR_PORT", "6379"))
 # --- Cypher queries (also quoted in README.md) -------------------------------
 
 # Recall: direct memories attached to the User that match any entity,
-# plus everything one more hop away (2-hop traversal).
+# plus everything one more hop away (2-hop traversal). Word-level
+# matching ($words) catches cases where the question phrases the
+# memory differently, e.g. "favourite football team" vs the stored
+# fact "User's favourite football team is Kerala Blasters".
 RECALL_QUERY = """
 MATCH (u:Person {name: 'User'})-[r1]->(n1)
 WHERE toLower(coalesce(n1.name, '')) IN $entities
    OR toLower(coalesce(n1.value, '')) IN $entities
    OR any(e IN $entities WHERE toLower(coalesce(n1.text, '')) CONTAINS e)
+   OR any(w IN $words WHERE toLower(coalesce(n1.name, '')) CONTAINS w
+      OR toLower(coalesce(n1.value, '')) CONTAINS w
+      OR toLower(coalesce(n1.text, '')) CONTAINS w)
 OPTIONAL MATCH (n1)-[r2]-(n2)
 RETURN n1, type(r1) AS rel1, n2, type(r2) AS rel2
 """
@@ -134,7 +140,26 @@ class Memory:
         """
         if entities:
             lowered = [e.lower() for e in entities if e]
-            result = self.graph.query(RECALL_QUERY, {"entities": lowered})
+            stopwords = {
+                "the", "and", "you", "your", "yours", "what", "whats",
+                "what's", "who", "whom", "whose", "when", "where", "which",
+                "how", "are", "is", "was", "were", "do", "does", "did",
+                "tell", "about", "that", "this", "with", "from", "have",
+                "has", "had", "can", "could", "would", "should", "there",
+                "their", "them", "then", "than", "for", "not", "but",
+                "are", "was", "were", "been", "being", "his", "her",
+            }
+            words = sorted(
+                {
+                    w.strip(".,!?\"'()[]")
+                    for e in lowered
+                    for w in e.split()
+                    if len(w) >= 3 and w.strip(".,!?\"'()[]") not in stopwords
+                }
+            )
+            result = self.graph.query(
+                RECALL_QUERY, {"entities": lowered, "words": words}
+            )
             lines = []
             seen = set()
             for row in result.result_set:
